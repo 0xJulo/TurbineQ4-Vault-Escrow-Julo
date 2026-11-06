@@ -1,0 +1,30 @@
+# Anchor / Solana
+.anchor/
+target/
+test-ledger/
+.surfpool/
+**/*.rs.bk
+
+# Keypairs (never commit private keys)
+*-keypair.json
+id.json
+
+# Node
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
