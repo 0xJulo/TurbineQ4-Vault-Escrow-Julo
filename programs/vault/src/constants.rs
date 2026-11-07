@@ -1,10 +1,11 @@
 use anchor_lang::prelude::*;
 
-#[constant]
-pub const COUNTER_SEED: &[u8] = b"counter";
+// This will act as the seed for the PDA
+// State holds the bumps, and this has the seeds,
+// And the combination comes later in the code. 
 
 #[constant]
-pub const HELLO_WORLD_LAMPORTS: u64 = 1;
+pub const VAULT_SEED: &[u8] = b"vault";
 
 #[constant]
-pub const MAX_COUNT: u64 = 10;
+pub const STATE_SEED: &[u8] = b"state";
