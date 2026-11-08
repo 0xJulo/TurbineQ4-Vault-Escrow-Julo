@@ -23,6 +23,7 @@ yarn-error.log*
 !.env.example
 
 # Editors / OS
+.cursor/
 .vscode/
 .idea/
 *.swp

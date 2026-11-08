@@ -14,4 +14,11 @@ declare_id!("8ZDScW5CB5o9NYKzqoM1w4ukRP34uT4Gh4H7NSvsMGRM");
 #[program]
 pub mod vault {
     use super::*;
+
+    pub fn initialize(ctx: Context<Init>) -> Result<()> {
+
+        // #[derive(Accounts)] macro create a hidden struct that holds the bumps
+
+        ctx.accounts.initialize(&ctx.bumps)
+    }
 }

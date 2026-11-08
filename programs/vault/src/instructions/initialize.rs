@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::system_program::{transfer, Transfer};
 
 use crate::state::VaultState; // Import the VaultState from the state.rs file
 use crate::constants::*; // Bring all constants into the file
@@ -46,6 +47,17 @@ impl<'info> Init<'info> {
     // and the bumps that Anchor needs
 
     pub fn initialize(&mut self, bumps: &InitBumps) -> Result<()> {
+        let rent = Rent::get()?.minimum_balance(0);
+
+        let cpi_accounts = Transfer {
+            from: self.user.to_account_info(),
+            to: self.vault.to_account_info(),
+        };
+    
+        let cpi_ctx = CpiContext::new(self.system_program.key(), cpi_accounts);
+    
+        transfer(cpi_ctx, rent)?;
+
         self.vault_state.vault_bump = bumps.vault;
         self.vault_state.state_bump = bumps.vault_state;
         Ok(())
