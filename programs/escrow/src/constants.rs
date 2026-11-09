@@ -1,10 +1,9 @@
 use anchor_lang::prelude::*;
 
-#[constant]
-pub const COUNTER_SEED: &[u8] = b"counter";
+// This constant will be used as the seed for all escrow PDAs
+// The maker's key and the seed number from the struct in state.rs
+// will make each escrow unique. 
 
 #[constant]
-pub const HELLO_WORLD_LAMPORTS: u64 = 1;
+pub const ESCROW_SEED: &[u8] = b"escrow";
 
-#[constant]
-pub const MAX_COUNT: u64 = 10;

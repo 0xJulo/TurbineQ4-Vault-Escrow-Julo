@@ -14,12 +14,4 @@ declare_id!("DKEwRWy6jJQq4YgLBsxisLQgb5aYJfeVW4dTMJojnped");
 #[program]
 pub mod escrow {
     use super::*;
-
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        crate::instructions::initialize::handle_initialize(ctx)
-    }
-
-    pub fn increment(ctx: Context<Increment>) -> Result<()> {
-        crate::instructions::increment::handle_increment(ctx)
-    }
 }
