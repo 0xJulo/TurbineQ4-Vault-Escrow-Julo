@@ -4,4 +4,6 @@ use anchor_lang::prelude::*;
 pub enum VaultError {
     #[msg("Amount must be greater than 0")]
     InvalidAmount,
+    #[msg("Insufficient balance")]
+    InsufficientBalance,
 }
