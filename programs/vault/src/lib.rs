@@ -21,4 +21,8 @@ pub mod vault {
 
         ctx.accounts.initialize(&ctx.bumps)
     }
+
+    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+        ctx.accounts.deposit(amount)
+    }
 }
