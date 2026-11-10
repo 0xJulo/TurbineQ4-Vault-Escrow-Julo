@@ -11,6 +11,7 @@ use anchor_spl::token_interface::{
 use anchor_spl::associated_token::AssociatedToken;
 use crate::state::Escrow;
 use crate::constants::ESCROW_SEED;
+use crate::error::EscrowError;
 
 #[derive(Accounts)]
 pub struct Take<'info>{
@@ -98,6 +99,14 @@ impl<'info> Take<'info> {
     // Step 1: Tokens go straight to the maker
 
     pub fn deposit_tokens(&mut self) -> Result<()> {
+
+        // Check for expiration
+
+        let now = Clock::get()?.unix_timestamp;
+
+        if let Some(exp) = self.escrow.expiration {
+            require!(now <= exp, EscrowError::EscrowExpired);
+        }
         
         // Create the CPI
 

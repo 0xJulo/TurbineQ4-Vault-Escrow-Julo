@@ -40,4 +40,9 @@ pub mod escrow {
         ctx.accounts.withdraw_and_close()?;
         Ok(())
     }
+
+    pub fn update(ctx: Context<Update>, receive: u64, expiration: Option<i64>) -> Result<()> {
+        ctx.accounts.update_escrow(receive, expiration)?;
+        Ok(())
+    }
 }
