@@ -1,5 +1,11 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use anchor_spl::token_interface::{
+    Mint, 
+    TokenAccount, 
+    TokenInterface, 
+    transfer_checked, 
+    TransferChecked,
+};
 use anchor_spl::associated_token::AssociatedToken;
 use crate::state::Escrow;
 use crate::constants::ESCROW_SEED;
@@ -68,6 +74,9 @@ pub struct Make<'info> {
 }
 
 impl<'info> Make<'info> {
+
+    // This function is for creating a new escrow.
+
     pub fn init_escrow(
         &mut self, 
         seed: u64, 
@@ -82,4 +91,33 @@ impl<'info> Make<'info> {
             bump: bumps.escrow, });
         Ok(())
     }
+
+    // The tokens will move from the makers ATA account into the escrow vault.
+
+    pub fn deposit_tokens(&mut self, amount: u64) -> Result<()> {
+
+        // Same idea as the vault, collect the accounts
+        // state which program will be doing the transfer,
+        // build the context of the pair of them,
+        // then send the transfer. 
+
+        let cpi_accounts = TransferChecked {
+            from: self.maker_ata_a.to_account_info(),
+            to: self.vault.to_account_info(),
+            mint: self.mint_a.to_account_info(),
+            authority: self.maker.to_account_info(),
+        };
+
+        let cpi_program = self.token_program.key();
+
+        let cpi_ctx = CpiContext::new(cpi_program.key(), cpi_accounts);
+
+        // When you do transfer checked, you need to provide the decimals
+        // as it checks this against the mint.
+
+        transfer_checked(cpi_ctx, amount, self.mint_a.decimals)?;
+
+        Ok(())
+    }
 }
+

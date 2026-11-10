@@ -14,4 +14,18 @@ declare_id!("DKEwRWy6jJQq4YgLBsxisLQgb5aYJfeVW4dTMJojnped");
 #[program]
 pub mod escrow {
     use super::*;
+
+    // Initialising the escrow and deposit are the same action.
+    // They are two functions called off the back of the same instruction.
+
+    pub fn make(
+        ctx: Context<Make>, 
+        seed: u64, 
+        receive: u64, 
+        amount_a: u64,
+    ) -> Result<()> {
+        ctx.accounts.init_escrow(seed, receive, &ctx.bumps)?;
+        ctx.accounts.deposit_tokens(amount_a)?;
+        Ok(())
+    }
 }
