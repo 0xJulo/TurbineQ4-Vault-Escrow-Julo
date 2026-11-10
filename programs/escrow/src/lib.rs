@@ -28,4 +28,9 @@ pub mod escrow {
         ctx.accounts.deposit_tokens(amount_a)?;
         Ok(())
     }
+
+    pub fn refund(ctx: Context<Refund>) -> Result<()> {
+        ctx.accounts.refund()?;
+        Ok(())
+    }
 }
