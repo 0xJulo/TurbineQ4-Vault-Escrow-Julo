@@ -67,4 +67,19 @@ pub struct Make<'info> {
     pub system_program: Program<'info, System>,
 }
 
-impl<'info> Make<'info> {}
+impl<'info> Make<'info> {
+    pub fn init_escrow(
+        &mut self, 
+        seed: u64, 
+        receive: u64, bumps: &MakeBumps
+    ) -> Result<()> {
+        self.escrow.set_inner(Escrow { 
+            seed, 
+            maker: self.maker.key(), 
+            mint_a: self.mint_a.key(), 
+            mint_b: self.mint_b.key(), 
+            receive, 
+            bump: bumps.escrow, });
+        Ok(())
+    }
+}
