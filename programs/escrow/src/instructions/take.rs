@@ -24,17 +24,19 @@ pub struct Take<'info>{
     #[account(mut)]
     pub taker: Signer<'info>,
 
-    // The mints that are invovled
+    // The mints that are involved
+    // Boxed to move their data to the heap: Take has so many accounts
+    // that they overflow Solana's 4 KB stack limit otherwise.
 
     #[account(
         mint::token_program = token_program,
     )]
-    pub mint_a: InterfaceAccount<'info, Mint>,
+    pub mint_a: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         mint::token_program = token_program,
     )]
-    pub mint_b: InterfaceAccount<'info, Mint>,
+    pub mint_b: Box<InterfaceAccount<'info, Mint>>,
 
     // How the mints affec the user
 
