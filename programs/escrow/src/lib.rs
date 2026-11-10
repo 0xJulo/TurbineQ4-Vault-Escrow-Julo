@@ -33,4 +33,10 @@ pub mod escrow {
         ctx.accounts.refund()?;
         Ok(())
     }
+
+    pub fn take(ctx: Context<Take>) -> Result<()> {
+        ctx.accounts.deposit_tokens()?;
+        ctx.accounts.withdraw_and_close()?;
+        Ok(())
+    }
 }
