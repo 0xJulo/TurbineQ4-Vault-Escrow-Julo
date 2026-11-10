@@ -9,4 +9,5 @@ pub struct Escrow {
     pub mint_b: Pubkey, // The token the maker wants to receive
     pub receive: u64, // The amount of token B that the maker wants
     pub bump: u8, // Saved for PDA checking and signing 
+    pub expiration: Option<i64>, // The time the escrow expires, optional field
 }

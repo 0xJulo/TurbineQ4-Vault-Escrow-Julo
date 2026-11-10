@@ -23,8 +23,9 @@ pub mod escrow {
         seed: u64, 
         receive: u64, 
         amount_a: u64,
+        expiration: Option<i64>,
     ) -> Result<()> {
-        ctx.accounts.init_escrow(seed, receive, &ctx.bumps)?;
+        ctx.accounts.init_escrow(seed, receive, &ctx.bumps, expiration)?;
         ctx.accounts.deposit_tokens(amount_a)?;
         Ok(())
     }

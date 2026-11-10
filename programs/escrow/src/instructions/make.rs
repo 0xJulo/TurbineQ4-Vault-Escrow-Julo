@@ -9,6 +9,7 @@ use anchor_spl::token_interface::{
 use anchor_spl::associated_token::AssociatedToken;
 use crate::state::Escrow;
 use crate::constants::ESCROW_SEED;
+use crate::error::EscrowError;
 
 #[derive(Accounts)]
 #[instruction(seed: u64)]
@@ -80,15 +81,29 @@ impl<'info> Make<'info> {
     pub fn init_escrow(
         &mut self, 
         seed: u64, 
-        receive: u64, bumps: &MakeBumps
+        receive: u64, bumps: &MakeBumps,
+        expiration: Option<i64>,
     ) -> Result<()> {
+
+        // Check for expiration
+    
+        let now = Clock::get()?.unix_timestamp;
+
+        if let Some(expiration) = expiration {
+            require!(expiration > now, EscrowError::InvalidExpiration);
+        }
+
+        // Set the escrow struct
         self.escrow.set_inner(Escrow { 
             seed, 
             maker: self.maker.key(), 
             mint_a: self.mint_a.key(), 
             mint_b: self.mint_b.key(), 
             receive, 
-            bump: bumps.escrow, });
+            bump: bumps.escrow, 
+            expiration,
+        });
+
         Ok(())
     }
 
