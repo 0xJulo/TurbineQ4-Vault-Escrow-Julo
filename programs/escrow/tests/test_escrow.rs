@@ -1,10 +1,10 @@
 use {
     anchor_lang::{
-        prelude::Pubkey,
+        prelude::{Clock, Pubkey},
         solana_program::{instruction::Instruction, system_program},
-        InstructionData, ToAccountMetas,
-    }, 
-    anchor_spl::associated_token::get_associated_token_address, 
+        AccountDeserialize, InstructionData, ToAccountMetas,
+    },
+    anchor_spl::{associated_token::get_associated_token_address, token::TokenAccount},
     escrow::ESCROW_SEED, 
     litesvm::{types::TransactionResult, LiteSVM}, 
     litesvm_token::{CreateAssociatedTokenAccount, CreateMint, MintTo}, 
@@ -141,6 +141,7 @@ pub fn send_instruction(
 
     svm.send_transaction(transaction)
 }
+
 // Make instruction: builds the `make` instruction from the test context.
 // The maker locks `amount_a` of token A in the vault and asks for `receive` of token B.
 // `expiration` is optional: None means the escrow never expires.
@@ -229,4 +230,152 @@ fn update_instruction(ctx: &TestContext, receive: u64, expiration: Option<i64>) 
         }
         .to_account_metas(None),
     )
+}
+
+// ------------------------------------------------------------
+// TEST HELPERS
+// ------------------------------------------------------------
+
+// Every test uses the same amounts (6 decimals, so 1 token = 1_000_000)
+const STARTING_BALANCE: u64 = 1_000_000_000; // 1,000 tokens, minted in setup()
+const AMOUNT_A: u64 = 10_000_000; // 10 token A locked by the maker
+const RECEIVE: u64 = 50_000_000; // 50 token B wanted in return
+
+// Reads how many tokens a token account holds
+fn token_balance(ctx: &TestContext, token_account: &Pubkey) -> u64 {
+    let account = ctx.svm.get_account(token_account).unwrap();
+    TokenAccount::try_deserialize(&mut account.data.as_ref()).unwrap().amount
+}
+
+// Reads the escrow account back into the Escrow struct
+fn read_escrow(ctx: &TestContext) -> escrow::state::Escrow {
+    let account = ctx.svm.get_account(&ctx.escrow).unwrap();
+    escrow::state::Escrow::try_deserialize(&mut account.data.as_ref()).unwrap()
+}
+
+// The current time on the test chain
+fn now(ctx: &TestContext) -> i64 {
+    ctx.svm.get_sysvar::<Clock>().unix_timestamp
+}
+
+// Moves the test chain's clock forward, so expiry can be tested
+fn warp_time(ctx: &mut TestContext, seconds: i64) {
+    let mut clock = ctx.svm.get_sysvar::<Clock>();
+    clock.unix_timestamp += seconds;
+    ctx.svm.set_sysvar::<Clock>(&clock);
+}
+
+// ------------------------------------------------------------
+// HAPPY PATH TESTS
+// ------------------------------------------------------------
+
+#[test]
+fn test_make_and_refund() {
+    let mut ctx = setup();
+
+    // Make: the maker locks 10 token A
+    let ix = make_instruction(&ctx, RECEIVE, AMOUNT_A, None);
+    send_instruction(&mut ctx.svm, &ctx.maker, ix).unwrap();
+
+    assert_eq!(token_balance(&ctx, &ctx.vault), AMOUNT_A, "Vault should hold the locked token A");
+    assert_eq!(token_balance(&ctx, &ctx.maker_ata_a), STARTING_BALANCE - AMOUNT_A, "Maker should have sent token A");
+
+    let escrow = read_escrow(&ctx);
+    assert_eq!(escrow.seed, SEED);
+    assert_eq!(escrow.maker, ctx.maker.pubkey());
+    assert_eq!(escrow.mint_a, ctx.mint_a);
+    assert_eq!(escrow.mint_b, ctx.mint_b);
+    assert_eq!(escrow.receive, RECEIVE);
+    assert_eq!(escrow.expiration, None);
+
+    // Refund: the maker cancels and gets everything back
+    let ix = refund_instruction(&ctx);
+    send_instruction(&mut ctx.svm, &ctx.maker, ix).unwrap();
+
+    assert_eq!(token_balance(&ctx, &ctx.maker_ata_a), STARTING_BALANCE, "Maker should have all token A back");
+    assert!(ctx.svm.get_account(&ctx.vault).is_none(), "Vault should be closed");
+    assert!(ctx.svm.get_account(&ctx.escrow).is_none(), "Escrow should be closed");
+}
+
+#[test]
+fn test_make_and_take() {
+    let mut ctx = setup();
+
+    // Make: the maker offers 10 token A for 50 token B
+    let ix = make_instruction(&ctx, RECEIVE, AMOUNT_A, None);
+    send_instruction(&mut ctx.svm, &ctx.maker, ix).unwrap();
+
+    // Take: the taker accepts
+    let ix = take_instruction(&ctx);
+    send_instruction(&mut ctx.svm, &ctx.taker, ix).unwrap();
+
+    // These accounts were created by take (init_if_needed)
+    let maker_ata_b = get_associated_token_address(&ctx.maker.pubkey(), &ctx.mint_b);
+    let taker_ata_a = get_associated_token_address(&ctx.taker.pubkey(), &ctx.mint_a);
+
+    assert_eq!(token_balance(&ctx, &maker_ata_b), RECEIVE, "Maker should receive token B");
+    assert_eq!(token_balance(&ctx, &taker_ata_a), AMOUNT_A, "Taker should receive token A");
+    assert_eq!(token_balance(&ctx, &ctx.taker_ata_b), STARTING_BALANCE - RECEIVE, "Taker should have paid token B");
+    assert!(ctx.svm.get_account(&ctx.vault).is_none(), "Vault should be closed");
+    assert!(ctx.svm.get_account(&ctx.escrow).is_none(), "Escrow should be closed");
+}
+
+#[test]
+fn test_make_and_update() {
+    let mut ctx = setup();
+
+    let ix = make_instruction(&ctx, RECEIVE, AMOUNT_A, None);
+    send_instruction(&mut ctx.svm, &ctx.maker, ix).unwrap();
+
+    // Update: lower the price and add a deadline one day from now
+    let new_receive = 40_000_000;
+    let new_expiration = Some(now(&ctx) + 86_400);
+
+    let ix = update_instruction(&ctx, new_receive, new_expiration);
+    send_instruction(&mut ctx.svm, &ctx.maker, ix).unwrap();
+
+    let escrow = read_escrow(&ctx);
+    assert_eq!(escrow.receive, new_receive, "Price should be updated");
+    assert_eq!(escrow.expiration, new_expiration, "Expiration should be updated");
+}
+
+// ------------------------------------------------------------
+// FAILURE TESTS
+// ------------------------------------------------------------
+
+#[test]
+fn test_take_after_expiry_fails() {
+    let mut ctx = setup();
+
+    // Make an escrow that expires in 100 seconds
+    let expiration = Some(now(&ctx) + 100);
+    let ix = make_instruction(&ctx, RECEIVE, AMOUNT_A, expiration);
+    send_instruction(&mut ctx.svm, &ctx.maker, ix).unwrap();
+
+    // Move the clock past the deadline
+    warp_time(&mut ctx, 200);
+
+    let ix = take_instruction(&ctx);
+    let result = send_instruction(&mut ctx.svm, &ctx.taker, ix);
+
+    assert!(result.is_err(), "Take should fail after expiry");
+    let logs = result.unwrap_err().meta.logs.join("\n");
+    assert!(logs.contains("EscrowExpired"), "Should fail with EscrowExpired");
+
+    // The maker's tokens are still safe in the vault
+    assert_eq!(token_balance(&ctx, &ctx.vault), AMOUNT_A, "Vault should still hold token A");
+}
+
+#[test]
+fn test_make_with_past_expiry_fails() {
+    let mut ctx = setup();
+
+    // An expiry in the past makes no sense
+    let expiration = Some(now(&ctx) - 1);
+    let ix = make_instruction(&ctx, RECEIVE, AMOUNT_A, expiration);
+    let result = send_instruction(&mut ctx.svm, &ctx.maker, ix);
+
+    assert!(result.is_err(), "Make should fail with a past expiry");
+    let logs = result.unwrap_err().meta.logs.join("\n");
+    assert!(logs.contains("InvalidExpiration"), "Should fail with InvalidExpiration");
 }

@@ -13,8 +13,6 @@ And optionally:
 
 Both programs live in one Anchor workspace: `programs/vault` and `programs/escrow`.
 
-**Testing for the Escrow has not been completed as yet.**
-
 ## Code Documentation
 
 - Anchor: https://www.anchor-lang.com/docs
@@ -145,7 +143,23 @@ Both programs live in one Anchor workspace: `programs/vault` and `programs/escro
 
 ### **Step 7:** Testing with LiteSVM
 
-- _To do_
+- `tests/test_escrow.rs` tests every instruction, plus the two expiry rules
+- Test tokens are created with `litesvm-token`, which wraps the Token Program's instructions into one-line builders
+- `setup()` builds the whole test world and returns it in a `TestContext` struct:
+  - A fresh LiteSVM chain with the program loaded from `target/deploy/escrow.so`
+  - A maker and a taker, each airdropped 2 SOL
+  - Two mints (token A and token B) with 6 decimals, created with `CreateMint`
+  - The maker's token A account and the taker's token B account, created with `CreateAssociatedTokenAccount` and funded with 1,000 tokens each using `MintTo`
+  - The escrow PDA (using a fixed seed of 42) and the vault's address
+- Helper functions build each instruction (`make_instruction`, `take_instruction`, `refund_instruction`, `update_instruction`), read token balances and the escrow account, and move the chain's clock forward
+- Happy path tests:
+  - `test_make_and_refund`: the maker locks 10 token A, then refunds. The vault and escrow are closed and the maker has all their token A back
+  - `test_make_and_take`: the maker offers 10 token A for 50 token B and the taker accepts. The maker receives 50 token B, the taker receives 10 token A, and the vault and escrow are closed
+  - `test_make_and_update`: the maker changes the price from 50 to 40 token B and adds a one-day expiration
+- Failure tests:
+  - `test_take_after_expiry_fails`: the clock is moved past the expiration and `take` fails with `EscrowExpired`. The maker's token A stays in the vault
+  - `test_make_with_past_expiry_fails`: `make` with an expiration in the past fails with `InvalidExpiration`
+- Failures are checked by confirming the transaction returned an error, and that the program logs contain the expected error name
 
 ## Running the tests
 
@@ -156,4 +170,6 @@ cargo test
 
 `anchor build` must run first, as the tests load the compiled programs from `target/deploy/`.
 
-_Screenshot of all tests passing: to do_
+All 6 tests passing (5 escrow, 1 vault):
+
+![All tests passing](assets/tests-passing.png)
